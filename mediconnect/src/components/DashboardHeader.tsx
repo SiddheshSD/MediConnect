@@ -79,6 +79,14 @@ export const DashboardHeader: React.FC<{ title?: string }> = ({ title }) => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
 
+  const roleBadge = getRoleBadgeDetails(role);
+  const rolesList: UserRole[] = [
+    'patient',
+    'doctor',
+    'hospital',
+    'ambulance',
+    'blood_bank',
+  ];
             scanIntervalRef.current = setInterval(() => {
               const video = videoRef.current;
               if (video && video.readyState === video.HAVE_ENOUGH_DATA && ctx) {

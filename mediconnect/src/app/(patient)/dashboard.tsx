@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,9 @@ import { useAuth } from '@/context/AuthContext';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { PatientProfileData } from '@/types/auth';
 import { HealthcareColors } from '@/constants/theme';
+import { InteractiveEmergencyMap } from '@/components/InteractiveEmergencyMap';
+import { NearbyHospitalsOSMMap } from '@/components/NearbyHospitalsOSMMap';
+import QRCode from 'react-native-qrcode-svg';
 import { buildPatientQrPayload } from '@/services/qrCodeService';
 
 export default function PatientDashboard() {
@@ -84,6 +87,14 @@ export default function PatientDashboard() {
       setCprCount(1);
     }
   };
+
+  useEffect(() => {
+    if (!cprRunning) return;
+    const interval = setInterval(() => {
+      setCprCount((prev) => (prev >= 30 ? 1 : prev + 1));
+    }, 545); // ~110 BPM (AHA standard is 100-120 BPM)
+    return () => clearInterval(interval);
+  }, [cprRunning]);
 
   return (
     <View style={styles.container}>
@@ -219,11 +230,25 @@ export default function PatientDashboard() {
 
               {cprRunning && (
                 <View style={styles.cprActiveBox}>
-                  <Text style={styles.cprPulseText}>Push hard & fast in center of chest</Text>
-                  <Text style={styles.cprRate}>Target: 100-120 BPM • 2 Inches Deep</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 6 }}>
+                    <Text style={styles.cprPulseText}>Push hard & fast in center of chest</Text>
+                    <View style={styles.cprCountBadge}>
+                      <Text style={styles.cprCountText}>Beat: {cprCount}/30</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.cprRate}>
+                    Target: 110 BPM (AHA Protocol) • 2 Inches Deep • 30 Compressions : 2 Breaths
+                  </Text>
                 </View>
               )}
             </View>
+
+            {/* Live Interactive Emergency Dispatch Map */}
+            <InteractiveEmergencyMap
+              patientName={user?.fullName || 'Rahul Sharma (Patient)'}
+              hospitalName="Metro City Trauma Hospital"
+              ambulanceName="Rapid ALS Unit 07"
+            />
 
             {/* Quick Access Matrix */}
             <Text style={styles.sectionTitle}>Nearest Emergency Facilities</Text>
@@ -255,9 +280,15 @@ export default function PatientDashboard() {
         {/* ================= VIEW 2: HOSPITALS ================= */}
         {activeTab === 'hospitals' && (
           <View style={styles.sectionArea}>
-            <Text style={styles.sectionTitle}>Live Hospital Bed & ICU Matrix</Text>
+            {/* Live OpenStreetMap Hospital Discovery & Routing */}
+            <NearbyHospitalsOSMMap
+              patientBloodGroup={patientProfile?.bloodGroup || 'O+'}
+              patientAllergies={patientProfile?.allergies || ['None reported']}
+            />
+
+            <Text style={styles.sectionTitle}>Regional Casualty & Trauma Matrix</Text>
             <Text style={styles.sectionSubtitle}>
-              Real-time available capacity reported directly by emergency casualty departments.
+              Emergency departments verified with dedicated ICU and ventilator resources.
             </Text>
 
             {hospitals.map((hosp) => (
@@ -371,6 +402,7 @@ export default function PatientDashboard() {
           <View style={styles.sectionArea}>
             <Text style={styles.sectionTitle}>Permanent Digital Medical Pass</Text>
             <Text style={styles.sectionSubtitle}>
+              Lock-screen ready medical credentials readable by paramedics and ER casualty staff.
               Your unique QR pass automatically resolves your live updated emergency profile when scanned.
             </Text>
 
@@ -389,6 +421,7 @@ export default function PatientDashboard() {
                   <Ionicons name="qr-code" size={140} color="#0F172A" />
                 )}
                 <Text style={styles.qrTokenText}>
+                  UNIQUE PASS TOKEN: {patientProfile?.qrPassToken || 'QR-MED-98765-ALPHA'}
                   UNIQUE PASS TOKEN: {patientProfile?.qrPassToken || 'qr_med_rahul_98765'}
                 </Text>
               </View>
@@ -396,6 +429,7 @@ export default function PatientDashboard() {
               <View style={styles.uniqueQrNoticeBox}>
                 <Ionicons name="infinite" size={18} color="#0284C7" />
                 <Text style={styles.uniqueQrNoticeText}>
+                  <Text style={{ fontWeight: '800' }}>Single Persistent QR Pass:</Text> Even if you update your phone number, emergency contacts, or allergies in your profile, this exact same QR code will always display your <Text style={{ fontWeight: '800' }}>latest live records</Text> to doctors and paramedics.
                   <Text style={{ fontWeight: '800' }}>Single Persistent QR Pass:</Text> Even if you update your phone number, emergency contacts, or allergies in your profile, this exact same QR code will always display your <Text style={{ fontWeight: '800' }}>latest live records</Text> to doctors and first-responders.
                 </Text>
               </View>
@@ -435,7 +469,7 @@ export default function PatientDashboard() {
               <View style={styles.offlineNotice}>
                 <Ionicons name="shield-checkmark" size={14} color="#059669" />
                 <Text style={styles.offlineNoticeText}>
-                  Encrypted & cached locally. First-responders can scan without cellular connection.
+                  Encrypted & cached locally. Paramedics can scan without cellular connection.
                 </Text>
               </View>
             </View>
@@ -684,6 +718,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#991B1B',
   },
+  cprCountBadge: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  cprCountText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
   cprRate: {
     fontSize: 11,
     color: '#DC2626',
@@ -923,6 +968,23 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  uniqueQrNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 12,
+    width: '100%',
+  },
+  uniqueQrNoticeText: {
+    fontSize: 12,
+    color: '#0369A1',
+    flex: 1,
+    lineHeight: 18,
   },
   qrTokenText: {
     fontSize: 11,
